@@ -4,5 +4,5 @@
 #except 
 !urlshort.go
 !go.mod
-!handler
+!handler/handler.go
 !README.md
