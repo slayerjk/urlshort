@@ -6,3 +6,5 @@
 !go.mod
 !handler/handler.go
 !README.md
+!data.yaml
+!data.json
