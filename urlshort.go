@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -8,10 +9,12 @@ import (
 )
 
 func main() {
-	mux := defaultMux()
-	yamlFilePath := "yaml-data.yaml"
+	yamlFilePath := flag.String("yaml", "yaml-data.yaml", "set custom yaml file")
+	flag.Parse()
 
-	yamlHandler, err := urlshort.YAMLHandler(yamlFilePath, mux)
+	mux := defaultMux()
+
+	yamlHandler, err := urlshort.YAMLHandler(*yamlFilePath, mux)
 	if err != nil {
 		log.Fatalf("failed to process request:\n\t%v", err)
 	}
