@@ -1,9 +1,12 @@
 package urlshort
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
+	"regexp"
 
 	"gopkg.in/yaml.v3"
 )
@@ -42,27 +45,55 @@ func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.Handl
 // See MapHandler to create a similar http.HandlerFunc via
 // a mapping of paths to urls.
 // func YAMLHandler(yml []byte, fallback http.Handler) (http.HandlerFunc, error) {
-func YAMLHandler(yamlFilePath string, fallback http.Handler) (http.HandlerFunc, error) {
-	// 1. parse yaml
-	yamlParsed, err := parseYAML(yamlFilePath)
-	if err != nil {
-		return nil, err
-	}
+func MakeHandler(dataFilePath string, fallback http.Handler) (http.HandlerFunc, error) {
+	pathsToUrls := make(map[string]string)
 
-	// 2. build map
-	pathsToUrls := buildMap(yamlParsed)
+	// 1. parse yaml or json
+	// parsing data file extension
+	reYaml, _ := regexp.Compile(`\.yaml$`)
+	reJson, _ := regexp.Compile(`\.json$`)
+
+	// run corresponding handler for yaml or json data file
+	switch {
+
+	case reYaml.MatchString(dataFilePath):
+		yamlParsed, err := parseYaml(dataFilePath)
+		if err != nil {
+			return nil, err
+		}
+
+		// 2. build map for yaml
+		pathsToUrls = buildMapYaml(yamlParsed)
+
+	case reJson.MatchString(dataFilePath):
+		jsonParsed, err := parseJson(dataFilePath)
+		if err != nil {
+			return nil, err
+		}
+
+		// 2. build map for json
+		pathsToUrls = buildMapJson(jsonParsed)
+
+	default:
+		log.Fatal("wrong data file extension; must be 'yaml' or 'json'")
+	}
 
 	// 3. return map handler
 	return MapHandler(pathsToUrls, fallback), nil
 }
 
-type pathUrl struct {
+type pathUrlYaml struct {
 	Path string `yaml:"path"`
 	Url  string `yaml:"url"`
 }
 
-func parseYAML(filepath string) ([]pathUrl, error) {
-	var result []pathUrl
+type pathUrlJson struct {
+	Path string `json:"path"`
+	Url  string `js:"url"`
+}
+
+func parseYaml(filepath string) ([]pathUrlYaml, error) {
+	var result []pathUrlYaml
 
 	file, err := os.ReadFile(filepath)
 	if err != nil {
@@ -77,10 +108,36 @@ func parseYAML(filepath string) ([]pathUrl, error) {
 	return result, nil
 }
 
-func buildMap(yamlParsed []pathUrl) map[string]string {
+func parseJson(filepath string) ([]pathUrlJson, error) {
+	var result []pathUrlJson
+
+	file, err := os.ReadFile(filepath)
+	if err != nil {
+		return result, fmt.Errorf("failed to open json file: \n\t%v", err)
+	}
+
+	errJ := json.Unmarshal(file, &result)
+	if errJ != nil {
+		return result, fmt.Errorf("failed to unmarshal json data: \n\t%v", errJ)
+	}
+
+	return result, nil
+}
+
+func buildMapYaml(yamlParsed []pathUrlYaml) map[string]string {
 	result := make(map[string]string)
 
 	for _, v := range yamlParsed {
+		result[v.Path] = v.Url
+	}
+
+	return result
+}
+
+func buildMapJson(jsonParsed []pathUrlJson) map[string]string {
+	result := make(map[string]string)
+
+	for _, v := range jsonParsed {
 		result[v.Path] = v.Url
 	}
 

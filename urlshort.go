@@ -9,17 +9,18 @@ import (
 )
 
 func main() {
-	yamlFilePath := flag.String("yaml", "yaml-data.yaml", "set custom yaml file")
+	dataFilePath := flag.String("f", "yaml-data.yaml", "set custom yaml or json file")
 	flag.Parse()
 
 	mux := defaultMux()
 
-	yamlHandler, err := urlshort.YAMLHandler(*yamlFilePath, mux)
+	handler, err := urlshort.MakeHandler(*dataFilePath, mux)
 	if err != nil {
 		log.Fatalf("failed to process request:\n\t%v", err)
 	}
 
-	log.Fatal(http.ListenAndServe(":8080", yamlHandler))
+	// run server
+	log.Fatal(http.ListenAndServe(":8080", handler))
 }
 
 func defaultMux() *http.ServeMux {
