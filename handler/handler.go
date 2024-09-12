@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -53,10 +54,12 @@ func MakeHandler(dataFilePath string, fallback http.Handler) (http.HandlerFunc, 
 	reYaml, _ := regexp.Compile(`\.yaml$`)
 	reJson, _ := regexp.Compile(`\.json$`)
 
-	// run corresponding handler for yaml or json data file
+	// set data file path to lower case
+	normalizedDataPath := strings.ToLower(dataFilePath)
+
 	switch {
 
-	case reYaml.MatchString(dataFilePath):
+	case reYaml.MatchString(normalizedDataPath):
 		yamlParsed, err := parseYaml(dataFilePath)
 		if err != nil {
 			return nil, err
@@ -65,7 +68,7 @@ func MakeHandler(dataFilePath string, fallback http.Handler) (http.HandlerFunc, 
 		// 2. build map for yaml
 		pathsToUrls = buildMapYaml(yamlParsed)
 
-	case reJson.MatchString(dataFilePath):
+	case reJson.MatchString(normalizedDataPath):
 		jsonParsed, err := parseJson(dataFilePath)
 		if err != nil {
 			return nil, err
