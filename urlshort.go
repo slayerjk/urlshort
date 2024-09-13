@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	dataFilePath := flag.String("f", "data.yaml", "set custom yaml or json file")
+	dataFilePath := flag.String("f", "data.yaml", "set custom 'yaml', 'json' or sqlite3 'db' file")
 	flag.Parse()
 
 	mux := defaultMux()

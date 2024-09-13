@@ -10,6 +10,11 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"database/sql"
+
+	_ "github.com/ncruces/go-sqlite3/driver"
+	_ "github.com/ncruces/go-sqlite3/embed"
 )
 
 // MapHandler will return an http.HandlerFunc (which also
@@ -48,11 +53,12 @@ func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.Handl
 // func YAMLHandler(yml []byte, fallback http.Handler) (http.HandlerFunc, error) {
 func MakeHandler(dataFilePath string, fallback http.Handler) (http.HandlerFunc, error) {
 	pathsToUrls := make(map[string]string)
+	var errDb error
 
-	// 1. parse yaml or json
 	// parsing data file extension
 	reYaml, _ := regexp.Compile(`\.yaml$`)
 	reJson, _ := regexp.Compile(`\.json$`)
+	reDb, _ := regexp.Compile(`\.db$`)
 
 	// set data file path to lower case
 	normalizedDataPath := strings.ToLower(dataFilePath)
@@ -60,6 +66,7 @@ func MakeHandler(dataFilePath string, fallback http.Handler) (http.HandlerFunc, 
 	switch {
 
 	case reYaml.MatchString(normalizedDataPath):
+		// 1. parse yaml
 		yamlParsed, err := parseYaml(dataFilePath)
 		if err != nil {
 			return nil, err
@@ -69,6 +76,7 @@ func MakeHandler(dataFilePath string, fallback http.Handler) (http.HandlerFunc, 
 		pathsToUrls = buildMapYaml(yamlParsed)
 
 	case reJson.MatchString(normalizedDataPath):
+		// 1. parse json
 		jsonParsed, err := parseJson(dataFilePath)
 		if err != nil {
 			return nil, err
@@ -76,6 +84,13 @@ func MakeHandler(dataFilePath string, fallback http.Handler) (http.HandlerFunc, 
 
 		// 2. build map for json
 		pathsToUrls = buildMapJson(jsonParsed)
+
+	case reDb.MatchString(normalizedDataPath):
+		// 1.2. parse sqlite3 db and build map
+		pathsToUrls, errDb = parseSqliteDb(dataFilePath)
+		if errDb != nil {
+			return nil, errDb
+		}
 
 	default:
 		log.Fatal("wrong data file extension; must be 'yaml' or 'json'")
@@ -122,6 +137,38 @@ func parseJson(filepath string) ([]pathUrlJson, error) {
 	errJ := json.Unmarshal(file, &result)
 	if errJ != nil {
 		return result, fmt.Errorf("failed to unmarshal json data: \n\t%v", errJ)
+	}
+
+	return result, nil
+}
+
+// sqlite3 db parsing: Columns: ID(pk), Path(text), URL(text not null)
+func parseSqliteDb(filepath string) (map[string]string, error) {
+	var path, url string
+	result := make(map[string]string)
+
+	db, err := sql.Open("sqlite3", "file:"+filepath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open db %s:\n\t%v", filepath, err)
+	}
+	defer db.Close()
+
+	rows, err := db.Query("SELECT Path, URL FROM pathsurls")
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve data of db %s:\n\t%v", filepath, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		if err := rows.Scan(&path, &url); err != nil {
+			return nil, fmt.Errorf("failed to scan columns values of db %s:\n\t%v", filepath, err)
+		}
+
+		result[path] = url
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sql aquired rows iteration error of db %s:\n\t%v", filepath, err)
 	}
 
 	return result, nil
